@@ -25,7 +25,7 @@ async function loadModel() {
     });
 
     remover = await pipeline(
-        "background-removal",
+        "image-segmentation",
         "onnx-community/ormbg-ONNX",
         {
             device: "wasm",
