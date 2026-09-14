@@ -1,4 +1,13 @@
-import { pipeline } from "@huggingface/transformers";
+import {
+    pipeline,
+    env
+} from "@huggingface/transformers";
+
+env.remoteHost =
+    `${self.location.origin}/hf`;
+
+env.remotePathTemplate =
+    "{model}/resolve/{revision}/{file}";
 
 let remover = null;
 
