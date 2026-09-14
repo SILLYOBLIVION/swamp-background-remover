@@ -151,6 +151,50 @@ self.addEventListener("message", async (event) => {
 
             const blob = await output[0].toBlob();
 
+            const mask = output[0].mask;
+
+            if (!mask) {
+                throw new Error(
+                    "Could not create output mask."
+                );
+            }
+
+            const { RawImage } = await import(
+                "@huggingface/transformers"
+            );
+
+            const original = await RawImage.fromBlob(
+                resized.blob
+            );
+
+            const rgba = original.rgba();
+
+            const resizedMask = await mask.resize(
+                resized.width,
+                resized.height
+            );
+
+            rgba.putAlpha(resizedMask);
+
+            const outputCanvas = new OffscreenCanvas(
+                resized.width,
+                resized.height
+            );
+
+            const ctx = outputCanvas.getContext("2d");
+
+            const imageData = new ImageData(
+                new Uint8ClampedArray(rgba.data),
+                resized.width,
+                resized.height
+            );
+
+            ctx.putImageData(imageData, 0, 0);
+
+            const blob = await outputCanvas.convertToBlob({
+                type: "image/png"
+            });
+
             if (!blob) {
                 throw new Error(
                     "Could not create output image."
