@@ -1,12 +1,11 @@
 import {
     pipeline,
-    env
+    env,
+    RawImage
 } from "@huggingface/transformers";
 
 env.remoteHost =
     `${self.location.origin}/hf`;
-
-
 
 let remover = null;
 
@@ -32,7 +31,10 @@ async function loadModel() {
             dtype: "q8",
 
             progress_callback: (progress) => {
-                console.log("MODEL PROGRESS:", progress);
+                console.log(
+                    "MODEL PROGRESS:",
+                    progress
+                );
 
                 self.postMessage({
                     status: "progress",
@@ -57,13 +59,25 @@ async function resizeImage(file, maxSize = 1024) {
 
     const scale = Math.min(
         1,
-        maxSize / Math.max(originalWidth, originalHeight)
+        maxSize / Math.max(
+            originalWidth,
+            originalHeight
+        )
     );
 
-    const width = Math.round(originalWidth * scale);
-    const height = Math.round(originalHeight * scale);
+    const width = Math.round(
+        originalWidth * scale
+    );
 
-    const canvas = new OffscreenCanvas(width, height);
+    const height = Math.round(
+        originalHeight * scale
+    );
+
+    const canvas = new OffscreenCanvas(
+        width,
+        height
+    );
+
     const ctx = canvas.getContext("2d");
 
     ctx.drawImage(
@@ -89,134 +103,183 @@ async function resizeImage(file, maxSize = 1024) {
     };
 }
 
-self.addEventListener("message", async (event) => {
-    const data = event.data;
+self.addEventListener(
+    "message",
+    async (event) => {
+        const data = event.data;
 
-    try {
-        if (data.type === "load") {
-            await loadModel();
-            return;
+        try {
+            if (data.type === "load") {
+                await loadModel();
+                return;
+            }
+
+            if (data.type === "remove") {
+                const model =
+                    await loadModel();
+
+                self.postMessage({
+                    status: "processing"
+                });
+
+                console.log(
+                    "WORKER: resizing image"
+                );
+
+                const resized =
+                    await resizeImage(
+                        data.image,
+                        1024
+                    );
+
+                console.log(
+                    `WORKER: resized ${resized.originalWidth}x${resized.originalHeight} -> ${resized.width}x${resized.height}`
+                );
+
+                self.postMessage({
+                    status: "resized",
+                    width: resized.width,
+                    height: resized.height,
+                    originalWidth:
+                        resized.originalWidth,
+                    originalHeight:
+                        resized.originalHeight
+                });
+
+                console.log(
+                    "WORKER: starting inference"
+                );
+
+                const startTime =
+                    performance.now();
+
+                const imageURL =
+                    URL.createObjectURL(
+                        resized.blob
+                    );
+
+                const output =
+                    await model([imageURL]);
+
+                URL.revokeObjectURL(
+                    imageURL
+                );
+
+                const inferenceTime =
+                    (
+                        performance.now() -
+                        startTime
+                    ) / 1000;
+
+                console.log(
+                    `WORKER: inference finished in ${inferenceTime.toFixed(2)} seconds`
+                );
+
+                if (
+                    !output ||
+                    !output[0]
+                ) {
+                    throw new Error(
+                        "No output was returned by the model."
+                    );
+                }
+
+                const mask =
+                    output[0].mask;
+
+                if (!mask) {
+                    throw new Error(
+                        "Could not create output mask."
+                    );
+                }
+
+                console.log(
+                    "WORKER: mask received"
+                );
+
+                const original =
+                    await RawImage.fromBlob(
+                        resized.blob
+                    );
+
+                const rgba =
+                    original.rgba();
+
+                const resizedMask =
+                    await mask.resize(
+                        resized.width,
+                        resized.height
+                    );
+
+                rgba.putAlpha(
+                    resizedMask
+                );
+
+                const outputCanvas =
+                    new OffscreenCanvas(
+                        resized.width,
+                        resized.height
+                    );
+
+                const ctx =
+                    outputCanvas.getContext(
+                        "2d"
+                    );
+
+                const imageData =
+                    new ImageData(
+                        new Uint8ClampedArray(
+                            rgba.data
+                        ),
+                        resized.width,
+                        resized.height
+                    );
+
+                ctx.putImageData(
+                    imageData,
+                    0,
+                    0
+                );
+
+                const outputBlob =
+                    await outputCanvas
+                        .convertToBlob({
+                            type: "image/png"
+                        });
+
+                if (!outputBlob) {
+                    throw new Error(
+                        "Could not create output image."
+                    );
+                }
+
+                console.log(
+                    "WORKER: output PNG created"
+                );
+
+                self.postMessage({
+                    status: "complete",
+                    blob: outputBlob,
+                    inferenceTime,
+                    processedWidth:
+                        resized.width,
+                    processedHeight:
+                        resized.height,
+                    originalWidth:
+                        resized.originalWidth,
+                    originalHeight:
+                        resized.originalHeight
+                });
+            }
+        } catch (error) {
+            console.error(error);
+
+            self.postMessage({
+                status: "error",
+                message:
+                    error?.message ||
+                    String(error)
+            });
         }
-
-        if (data.type === "remove") {
-            const model = await loadModel();
-
-            self.postMessage({
-                status: "processing"
-            });
-
-            console.log("WORKER: resizing image");
-
-            const resized = await resizeImage(
-                data.image,
-                1024
-            );
-
-            console.log(
-                `WORKER: resized ${resized.originalWidth}x${resized.originalHeight} -> ${resized.width}x${resized.height}`
-            );
-
-            self.postMessage({
-                status: "resized",
-                width: resized.width,
-                height: resized.height,
-                originalWidth: resized.originalWidth,
-                originalHeight: resized.originalHeight
-            });
-
-            console.log("WORKER: starting inference");
-
-            const startTime = performance.now();
-
-            const imageURL = URL.createObjectURL(
-                resized.blob
-            );
-
-            const output = await model([imageURL]);
-
-            URL.revokeObjectURL(imageURL);
-
-            const inferenceTime =
-                (performance.now() - startTime) / 1000;
-
-            console.log(
-                `WORKER: inference finished in ${inferenceTime.toFixed(2)} seconds`
-            );
-
-            if (!output || !output[0]) {
-                throw new Error(
-                    "No output was returned by the model."
-                );
-            }
-
-            const blob = await output[0].toBlob();
-
-            const mask = output[0].mask;
-
-            if (!mask) {
-                throw new Error(
-                    "Could not create output mask."
-                );
-            }
-
-            const { RawImage } = await import(
-                "@huggingface/transformers"
-            );
-
-            const original = await RawImage.fromBlob(
-                resized.blob
-            );
-
-            const rgba = original.rgba();
-
-            const resizedMask = await mask.resize(
-                resized.width,
-                resized.height
-            );
-
-            rgba.putAlpha(resizedMask);
-
-            const outputCanvas = new OffscreenCanvas(
-                resized.width,
-                resized.height
-            );
-
-            const ctx = outputCanvas.getContext("2d");
-
-            const imageData = new ImageData(
-                new Uint8ClampedArray(rgba.data),
-                resized.width,
-                resized.height
-            );
-
-            ctx.putImageData(imageData, 0, 0);
-
-            const blob = await outputCanvas.convertToBlob({
-                type: "image/png"
-            });
-
-            if (!blob) {
-                throw new Error(
-                    "Could not create output image."
-                );
-            }
-
-            self.postMessage({
-                status: "complete",
-                blob,
-                inferenceTime,
-                processedWidth: resized.width,
-                processedHeight: resized.height,
-                originalWidth: resized.originalWidth,
-                originalHeight: resized.originalHeight
-            });
-        }
-    } catch (error) {
-        console.error(error);
-
-        self.postMessage({
-            status: "error",
-            message: error?.message || String(error)
-        });
     }
-});
+);
