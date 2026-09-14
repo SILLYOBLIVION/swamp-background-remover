@@ -6,8 +6,7 @@ import {
 env.remoteHost =
     `${self.location.origin}/hf`;
 
-env.remotePathTemplate =
-    "{model}/resolve/{revision}/{file}";
+
 
 let remover = null;
 
