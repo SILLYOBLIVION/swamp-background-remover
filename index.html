@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swamp Background Remover</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+    <div class="lightRay"></div>
+    <div class="lightRay"></div>
+    <div class="lightRay"></div>
+
+    <div class="sediment sediment1"></div>
+    <div class="sediment sediment2"></div>
+    <div class="sediment sediment3"></div>
+    <div class="sediment sediment4"></div>
+    <div class="sediment sediment5"></div>
+    <div class="sediment sediment6"></div>
+    <div class="sediment sediment7"></div>
+    <div class="sediment sediment8"></div>
+    <div class="sediment sediment9"></div>
+    <div class="sediment sediment10"></div>
+
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+
+
+    <!-- Loading screen -->
+    <div id="loadingScreen">
+        <div class="loadingContent">
+            <h1>Swamp Background Remover</h1>
+
+            <p id="loadingText">
+                Loading resources...
+            </p>
+
+            <div class="progressBar">
+                <div id="progressFill"></div>
+            </div>
+
+            <p class="loadingHint">
+                Don't worry if this takes a while on your first visit.
+                Resources are downloading.
+            </p>
+        </div>
+    </div>
+
+    <!-- Main app -->
+    <main id="app" class="hidden">
+
+        <h1> Swamp Background Remover</h1>
+
+        <p>Upload an image and remove the background.</p>
+
+        <input type="file"
+               id="imageInput"
+               accept="image/*">
+
+        <button id="removeButton">
+            Remove Background
+        </button>
+
+        <p id="status"></p>
+
+        <section id="originalSection" style="display: none;">
+            <h2>Original</h2>
+            <img id="originalImage" alt="Original image">
+        </section>
+
+        <section>
+            <h2>Result</h2>
+            <canvas id="resultCanvas"></canvas>
+        </section>
+
+        <a id="downloadButton"
+           style="display: none;">
+            Download PNG
+        </a>
+
+    </main>
+
+    <script type="module" src="/script.js"></script>
+
+</body>
+
+</html>
